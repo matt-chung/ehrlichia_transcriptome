@@ -13,12 +13,12 @@
             - [Genomic references](#genomic-references)
             - [CDS references](#cds-references)
 - [Identify core Ehrlichia genes between the 8 E. chaffeensis strains and Ehrlichia sp. HF](#identify-core-ehrlichia-genes-between-the-8-e-chaffeensis-strains-and-ehrlichia-sp-hf)
-        - [Create CDS FNA files](#create-cds-fna-files)
-        - [Create FAA files](#create-faa-files)
-        - [Create BLASTP output file for PanOCT](#create-blastp-output-file-for-panoct)
-        - [Create gene tags file for PanOCT](#create-gene-tags-file-for-panoct)
-        - [Create gene attributes file for PanOCT](#create-gene-attributes-file-for-panoct)
-        - [Run PanOCT to find orthologous gene clusters](#run-panoct-to-find-orthologous-gene-clusters)
+    - [Create CDS FNA files](#create-cds-fna-files)
+    - [Create FAA files](#create-faa-files)
+    - [Create BLASTP output file for PanOCT](#create-blastp-output-file-for-panoct)
+    - [Create gene tags file for PanOCT](#create-gene-tags-file-for-panoct)
+    - [Create gene attributes file for PanOCT](#create-gene-attributes-file-for-panoct)
+    - [Run PanOCT to find orthologous gene clusters](#run-panoct-to-find-orthologous-gene-clusters)
 - [Identify differentially expression genes in canine, tick, and E. chaffeensis strains across the data set](#identify-differentially-expression-genes-in-canine-tick-and-e-chaffeensis-strains-across-the-data-set)
     - [Create SRR mapping file](#create-srr-mapping-file)
     - [Download FASTQs from SRA](#download-fastqs-from-sra)
@@ -214,8 +214,7 @@ cat "$WORKING_DIR"/references/tick.cds.fna "$WORKING_DIR"/references/HF.cds.fna 
 
 # Identify core Ehrlichia genes between the 8 E. chaffeensis strains and Ehrlichia sp. HF
 
-
-### Create CDS FNA files
+## Create CDS FNA files
 
 ##### Inputs
 ```{bash, eval = F}
@@ -251,7 +250,7 @@ do
 done
 ```
 
-### Create FAA files
+## Create FAA files
 
 ##### Inputs
 ```{bash, eval = F}
@@ -270,7 +269,7 @@ cat "$WORKING_DIR"/references/*[.]faa > "$REFERENCES_DIR"/combined_ehrlichia.faa
 sed -i "s/_1$//g" "$REFERENCES_DIR"/*faa
 ```
 
-### Create BLASTP output file for PanOCT
+## Create BLASTP output file for PanOCT
 
 ##### Inputs
 ```{bash, eval = F}
@@ -283,7 +282,7 @@ REFERENCES_DIR="$WORKING_DIR"/references/
 "$NCBIBLAST_BIN_DIR"/blastall -p blastp -i "$WORKING_DIR"/references/combined_ehrlichia.faa -d "$WORKING_DIR"/references/combined_ehrlichia.faa -e 1e-5 -m 8 -o "$WORKING_DIR"/panoct/blastall_out.txt
 ```
 
-### Create gene tags file for PanOCT
+## Create gene tags file for PanOCT
 
 ##### Inputs
 ```{bash, eval = F}
@@ -295,7 +294,7 @@ REFERENCES_DIR="$WORKING_DIR"/references/
 cat "$WORKING_DIR"/references/*[.]gff | grep -v "^#" | cut -f1 | sort -n | uniq > "$WORKING_DIR"/panoct/gene_tags.txt
 ```
 
-### Create gene attributes file for PanOCT
+## Create gene attributes file for PanOCT
 
 ##### Inputs
 ```{bash, eval = F}
@@ -317,7 +316,7 @@ do
 done
 ```
 
-### Run PanOCT to find orthologous gene clusters
+## Run PanOCT to find orthologous gene clusters
 
 ##### Inputs
 ```{bash, eval = F}
@@ -330,8 +329,6 @@ REFERENCES_DIR="$WORKING_DIR"/references/
 ```
 
 # Identify differentially expression genes in canine, tick, and E. chaffeensis strains across the data set
-
-
 
 ## Create SRR mapping file
 
