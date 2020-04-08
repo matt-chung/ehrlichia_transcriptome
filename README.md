@@ -1,3 +1,4 @@
+# Ehrlichia transcriptomics
 
 # Table of Contents
 <!-- MarkdownTOC autolink="true" levels="1,2,3,4" -->
@@ -81,6 +82,7 @@
             - [Identify differentially expressed genes longitudinally](#identify-differentially-expressed-genes-longitudinally-2)
             - [Conduct PCA and hierarchical clustering analyses on genes that passed the CPM cutoff](#conduct-pca-and-hierarchical-clustering-analyses-on-genes-that-passed-the-cpm-cutoff-2)
             - [Divide differentially expressed genes into expression modules](#divide-differentially-expressed-genes-into-expression-modules-2)
+            - [Construct geneinfo for Ehrlichia core genome](#construct-geneinfo-for-ehrlichia-core-genome)
             - [Test each module partition for over-represented functional terms](#test-each-module-partition-for-over-represented-functional-terms-2)
 
 <!-- /MarkdownTOC -->
@@ -339,12 +341,12 @@ vim "$WORKING_DIR"/pecha_groups.tsv
 ```
 
 ```{bash, eval = F}
-SRR1188323	PECHA_Arkansas_mRNA1	#497FCA	16	Arkansas
-SRR1188505	PECHA_Arkansas_mRNA2	#497FCA	16	Arkansas
-SRR1188516	PECHA_Arkansas_mRNA3	#497FCA	16	Arkansas
-SRR1188524	PECHA_Arkansas_totalRNA1	#497FCA	16	Arkansas
-SRR1188570	PECHA_Arkansas_totalRNA2	#497FCA	16	Arkansas
-SRR1188615	PECHA_Arkansas_totalRNA3	#497FCA	16	Arkansas
+SRR1188323	PECHA_Arkansas_mRNA1	#497fca	16	Arkansas
+SRR1188505	PECHA_Arkansas_mRNA2	#497fca	16	Arkansas
+SRR1188516	PECHA_Arkansas_mRNA3	#497fca	16	Arkansas
+SRR1188524	PECHA_Arkansas_totalRNA1	#497fca	16	Arkansas
+SRR1188570	PECHA_Arkansas_totalRNA2	#497fca	16	Arkansas
+SRR1188615	PECHA_Arkansas_totalRNA3	#497fca	16	Arkansas
 SRR1188623	PECHA_DH82_mRNA1	#000000	16	DH82
 SRR1188622	PECHA_DH82_mRNA1	#000000	16	DH82
 SRR1188624	PECHA_DH82_mRNA2	#000000	16	DH82
@@ -793,6 +795,7 @@ done
 
 ## Conduct differential expression analysis
 
+
 ### Canine
 
 #### Set R inputs
@@ -1043,7 +1046,7 @@ write.table(counts,
             row.names = T,
             sep = "\t")
 
-colSums(counts)
+sort(colSums(counts))
 ```
 
 ```{R, eval = F}
@@ -1082,6 +1085,9 @@ write.table(tpm,
 dim(tpm)
 ```
 
+```{R, eval = F}
+
+```
 #### Set group levels
 ```{R}
 groups <- unique(groups[2:5])
@@ -1131,7 +1137,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/canine_rarefication_plot.png"),
     height=5,
     width=6,
-	units = "in",res=300)
+    units = "in",res=300)
 print(rarefy.plot)
 dev.off()
 
@@ -1189,6 +1195,9 @@ write.table(edgeR.longitudinal.degenes,
 
 counts.keep <- counts[keep,]
 tpm.keep <- tpm[keep,]
+
+counts.de <- counts[rownames(counts) %in% rownames(edgeR.longitudinal.degenes),]
+tpm.de <- tpm[rownames(tpm) %in% rownames(edgeR.longitudinal.degenes),]
 ```
 
 
@@ -1265,7 +1274,7 @@ dendrogram.plot <- ggdendrogram(hang.dendrogram(as.dendrogram(result$hclust)), t
 
 for(i in 1:length(result$edges$bp)){
   text <- round(result$edges$bp[i] * 100,0)
-  dendrogram.plot <- dendrogram.plot + annotate("text", label = text, x=bootstrap.positions[i,1] + 0.4, y=bootstrap.positions[i,2] + 0.02, size = 2)
+  dendrogram.plot <- dendrogram.plot + annotate("text", label = text, x=bootstrap.positions[i,1] + 0.4, y=bootstrap.positions[i,2] + 0.04, size = 2)
 }
 pdf(paste0(WORKING.DIR,"/plots/canine_tpm_kept_dendrogram.pdf"),
     height=5,
@@ -1276,7 +1285,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/canine_tpm_kept_dendrogram.png"),
     height=5,
     width=10,
-	units = "in",res=300)
+    units = "in",res=300)
 print(dendrogram.plot)
 dev.off()
 
@@ -1284,6 +1293,60 @@ print(dendrogram.plot)
 ```
 
 ![image](/images/canine_tpm_kept_dendrogram.png)
+
+##### Conduct a hierarchical cluster analysis on the TPM values of all differentially expressed
+
+```{R, fig.height=5, fig.width=10}
+dendrogram <- as.data.frame(t(scale(t(log2(tpm.de+1)))))
+
+result <- pvclust(dendrogram, method.dist="cor", method.hclust="average", nboot=100)
+
+structure <- get_dendro_structure(result)
+dendro.data <- get_dendro_data(result)
+bootstrap.positions <- get_dendro_bootstraps(dendro.data)
+  
+points.df <- as.data.frame(cbind(seq(1,length(structure),1),
+                                 structure))
+dendrogroups <- groups[,4][result$hclust$order]
+dendrocol <- groups[,2][result$hclust$order]
+dendroshape <- groups[,3][result$hclust$order]
+dendrosize <- colSums(counts.keep)[result$hclust$order]
+#dendrosize <- 1
+
+dendrogram.plot <- ggdendrogram(hang.dendrogram(as.dendrogram(result$hclust)), theme_dendro = T)+
+  geom_point(aes(x=seq(1,length(structure)), y = structure, color = dendrogroups, size = dendrosize, shape = dendroshape))+
+  scale_shape_manual(values= as.numeric(as.character(levels(dendroshape))))+
+  scale_color_manual(values = levels(groups[,2]))+
+  labs(x = "", y = "", col = "Samples", size = "Reads Mapped\nto Features")+
+  guides(colour = guide_legend(ncol = 2), size = F, shape = F)+
+  #scale_x_discrete(limits = as.character(dendrolabels))+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0, hjust = 1),
+        axis.text.y = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+for(i in 1:length(result$edges$bp)){
+  text <- round(result$edges$bp[i] * 100,0)
+  dendrogram.plot <- dendrogram.plot + annotate("text", label = text, x=bootstrap.positions[i,1] + 0.4, y=bootstrap.positions[i,2] + 0.04, size = 2)
+}
+pdf(paste0(WORKING.DIR,"/plots/canine_tpm_de_dendrogram.pdf"),
+    height=5,
+    width=10)
+print(dendrogram.plot)
+dev.off()
+
+png(paste0(WORKING.DIR,"/plots/canine_tpm_de_dendrogram.png"),
+    height=5,
+    width=10,
+    units = "in",res=300)
+print(dendrogram.plot)
+dev.off()
+
+print(dendrogram.plot)
+```
+
+![image](/images/canine_tpm_de_dendrogram.png)
 
 ##### Conduct a PCA on the TPM values of all genes that passed CPM cutoff
 
@@ -1293,10 +1356,11 @@ pca.df <- pca.df[rowSums(pca.df == 0) != ncol(pca.df),]
 pca <- PCA(as.data.frame(scale(t(pca.df))), graph = FALSE, ncp = ncol(tpm.keep) - 1)
 
 pca.plot <- ggplot()+
-  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = dendrocol,size = dendrosize, shape = dendroshape))+
+  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = groups[,4],size = colSums(counts), shape = groups[,3]))+
   labs(col = "Samples", size = "Reads Mapped\nto Features", 
        x = paste0("PC1 (", round(pca$eig[1,2],1), "%)"), 
        y = paste0("PC2 (", round(pca$eig[2,2],1), "%)"))+
+  #geom_label_repel(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2],label=names(pca$ind$dist)))+
   guides(color = F,size = F, shape = F)+
   # guides(colour = guide_legend(ncol = 2))+
   scale_color_manual(values = levels(groups[,2]))+
@@ -1312,7 +1376,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/canine_tpm_kept_pca.png"),
     height=5,
     width=5,
-	units = "in",res=300)
+    units = "in",res=300)
 print(pca.plot)
 dev.off()
 
@@ -1321,13 +1385,48 @@ print(pca.plot)
 
 ![image](/images/canine_tpm_kept_pca.png)
 
+##### Conduct a PCA on the TPM values of all differentially expressed genes
+
+```{R,fig.height=5,fig.width=5}
+pca.df <- t(scale(t(log2(tpm.de + 1))))
+pca.df <- pca.df[rowSums(pca.df == 0) != ncol(pca.df),]
+pca <- PCA(as.data.frame(scale(t(pca.df))), graph = FALSE, ncp = ncol(tpm.keep) - 1)
+
+pca.plot <- ggplot()+
+  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = groups[,4],size = colSums(counts), shape = groups[,3]))+
+  labs(col = "Samples", size = "Reads Mapped\nto Features", 
+       x = paste0("PC1 (", round(pca$eig[1,2],1), "%)"), 
+       y = paste0("PC2 (", round(pca$eig[2,2],1), "%)"))+
+  #geom_label_repel(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2],label=names(pca$ind$dist)))+
+  guides(color = F,size = F, shape = F)+
+  # guides(colour = guide_legend(ncol = 2))+
+  scale_color_manual(values = levels(groups[,2]))+
+  scale_shape_manual(values= as.numeric(as.character(levels(dendroshape))))+
+  theme_bw()
+
+pdf(paste0(WORKING.DIR,"/plots/canine_tpm_de_pca.pdf"),
+    height=5,
+    width=5)
+print(pca.plot)
+dev.off()
+
+png(paste0(WORKING.DIR,"/plots/canine_tpm_de_pca.png"),
+    height=5,
+    width=5,
+    units = "in",res=300)
+print(pca.plot)
+dev.off()
+
+print(pca.plot)
+```
+
+![image](/images/canine_tpm_de_pca.png)
+
 #### Divide differentially expressed genes into expression modules
 
 ##### Find soft power value for WGCNA
 
 ```{R}
-tpm.de <- tpm[rownames(tpm) %in% rownames(edgeR.longitudinal.degenes),]
-
 wgcna <- as.data.frame(t(tpm.de))
 powers <- c(c(1:10), seq(from = 12, to=20, by=2))
 sft <- pickSoftThreshold(wgcna, powerVector = powers, verbose = 5)
@@ -1361,7 +1460,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/canine_tpm_de_wgcna_soft_power_plot.png"),
     width = 10, 
     height = 5,
-	units = "in",res=300)
+    units = "in",res=300)
 grid.arrange(grobs = wgcna_soft_power_plots,
              widths = c(5,5),
              heights = c(5),
@@ -1935,22 +2034,26 @@ write.table(counts,
             row.names = T,
             sep = "\t")
 
-colSums(counts)
+sort(colSums(counts))
 ```
 
 ```{R, eval = F}
- PECHA_ISE6_Arkansas_mRNA1  PECHA_ISE6_Arkansas_mRNA4  PECHA_ISE6_Arkansas_mRNA5 PECHA_ISE6_Heartland_mRNA1 PECHA_ISE6_Heartland_mRNA2 
-                17371256.1                   965294.2                   415261.1                   535804.0                   716451.0 
-PECHA_ISE6_Heartland_mRNA3        PECHA_ISE6_HF_mRNA1        PECHA_ISE6_HF_mRNA2        PECHA_ISE6_HF_mRNA3       PECHA_ISE6_Jax_mRNA1 
-                  613679.0                   592531.2                   426703.1                  1029629.3                   741714.0 
-      PECHA_ISE6_Jax_mRNA2       PECHA_ISE6_Jax_mRNA3   PECHA_ISE6_Liberty_mRNA1   PECHA_ISE6_Liberty_mRNA2   PECHA_ISE6_Liberty_mRNA3 
-                 1351246.5                  1105501.0                  1042668.0                  1006309.1                   535050.0 
-          PECHA_ISE6_mRNA1           PECHA_ISE6_mRNA2           PECHA_ISE6_mRNA3   PECHA_ISE6_Osceola_mRNA1   PECHA_ISE6_Osceola_mRNA2 
-                  363096.0                   594353.0                   533546.0                   618000.0                   619140.0 
-  PECHA_ISE6_Osceola_mRNA3 PECHA_ISE6_StVincent_mRNA1 PECHA_ISE6_StVincent_mRNA2 PECHA_ISE6_StVincent_mRNA3   PECHA_ISE6_Wakulla_mRNA1 
-                  618716.0                   942616.0                   468259.0                   698992.0                   985561.0 
-  PECHA_ISE6_Wakulla_mRNA2   PECHA_ISE6_Wakulla_mRNA3 PECHA_ISE6_WestPaces_mRNA1 PECHA_ISE6_WestPaces_mRNA2 PECHA_ISE6_WestPaces_mRNA3 
-                  622454.0                   564877.8                   913495.0                  1779219.9                  2108551.0
+          PECHA_ISE6_mRNA1  PECHA_ISE6_Arkansas_mRNA5        PECHA_ISE6_HF_mRNA2 PECHA_ISE6_StVincent_mRNA2 
+                  363096.0                   415261.1                   426703.1                   468259.0 
+          PECHA_ISE6_mRNA3   PECHA_ISE6_Liberty_mRNA3 PECHA_ISE6_Heartland_mRNA1   PECHA_ISE6_Wakulla_mRNA3 
+                  533546.0                   535050.0                   535804.0                   564877.8 
+       PECHA_ISE6_HF_mRNA1           PECHA_ISE6_mRNA2 PECHA_ISE6_Heartland_mRNA3   PECHA_ISE6_Osceola_mRNA1 
+                  592531.2                   594353.0                   613679.0                   618000.0 
+  PECHA_ISE6_Osceola_mRNA3   PECHA_ISE6_Osceola_mRNA2   PECHA_ISE6_Wakulla_mRNA2 PECHA_ISE6_StVincent_mRNA3 
+                  618716.0                   619140.0                   622454.0                   698992.0 
+PECHA_ISE6_Heartland_mRNA2       PECHA_ISE6_Jax_mRNA1 PECHA_ISE6_WestPaces_mRNA1 PECHA_ISE6_StVincent_mRNA1 
+                  716451.0                   741714.0                   913495.0                   942616.0 
+ PECHA_ISE6_Arkansas_mRNA4   PECHA_ISE6_Wakulla_mRNA1   PECHA_ISE6_Liberty_mRNA2        PECHA_ISE6_HF_mRNA3 
+                  965294.2                   985561.0                  1006309.1                  1029629.3 
+  PECHA_ISE6_Liberty_mRNA1       PECHA_ISE6_Jax_mRNA3       PECHA_ISE6_Jax_mRNA2 PECHA_ISE6_WestPaces_mRNA2 
+                 1042668.0                  1105501.0                  1351246.5                  1779219.9 
+PECHA_ISE6_WestPaces_mRNA3  PECHA_ISE6_Arkansas_mRNA1 
+                 2108551.0                 17371256.1        
 ```
 
 #### Create TPM data frame
@@ -1972,6 +2075,10 @@ write.table(tpm,
             sep = "\t")
 
 dim(tpm)
+```
+
+```{R, eval = F}
+20486    30
 ```
 
 #### Set group levels
@@ -2023,7 +2130,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/tick_rarefication_plot.png"),
     height=5,
     width=6,
-	units = "in",res=300)
+    units = "in",res=300)
 print(rarefy.plot)
 dev.off()
 
@@ -2064,6 +2171,10 @@ write.table(edgeR.longitudinal.degenes,
 
 counts.keep <- counts[keep,]
 tpm.keep <- tpm[keep,]
+
+counts.de <- counts[rownames(counts) %in% rownames(edgeR.longitudinal.degenes),]
+tpm.de <- tpm[rownames(tpm) %in% rownames(edgeR.longitudinal.degenes),]
+
 ```
 
 
@@ -2151,7 +2262,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/tick_tpm_kept_dendrogram.png"),
     height=5,
     width=10,
-	units = "in",res=300)
+    units = "in",res=300)
 print(dendrogram.plot)
 dev.off()
 
@@ -2159,6 +2270,60 @@ print(dendrogram.plot)
 ```
 
 ![image](/images/tick_tpm_kept_dendrogram.png)
+
+##### Conduct a hierarchical cluster analysis on the TPM values of all differentially expressed
+
+```{R, fig.height=5, fig.width=10}
+dendrogram <- as.data.frame(t(scale(t(log2(tpm.de+1)))))
+
+result <- pvclust(dendrogram, method.dist="cor", method.hclust="average", nboot=100)
+
+structure <- get_dendro_structure(result)
+dendro.data <- get_dendro_data(result)
+bootstrap.positions <- get_dendro_bootstraps(dendro.data)
+  
+points.df <- as.data.frame(cbind(seq(1,length(structure),1),
+                                 structure))
+dendrogroups <- groups[,4][result$hclust$order]
+dendrocol <- groups[,2][result$hclust$order]
+dendroshape <- groups[,3][result$hclust$order]
+dendrosize <- colSums(counts.keep)[result$hclust$order]
+#dendrosize <- 1
+
+dendrogram.plot <- ggdendrogram(hang.dendrogram(as.dendrogram(result$hclust)), theme_dendro = T)+
+  geom_point(aes(x=seq(1,length(structure)), y = structure, color = dendrogroups, size = dendrosize, shape = dendroshape))+
+  scale_shape_manual(values= as.numeric(as.character(levels(dendroshape))))+
+  scale_color_manual(values = levels(groups[,2]))+
+  labs(x = "", y = "", col = "Samples", size = "Reads Mapped\nto Features")+
+  guides(colour = guide_legend(ncol = 2), size = F, shape = F)+
+  #scale_x_discrete(limits = as.character(dendrolabels))+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0, hjust = 1),
+        axis.text.y = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+for(i in 1:length(result$edges$bp)){
+  text <- round(result$edges$bp[i] * 100,0)
+  dendrogram.plot <- dendrogram.plot + annotate("text", label = text, x=bootstrap.positions[i,1] + 0.4, y=bootstrap.positions[i,2] + 0.04, size = 2)
+}
+pdf(paste0(WORKING.DIR,"/plots/tick_tpm_de_dendrogram.pdf"),
+    height=5,
+    width=10)
+print(dendrogram.plot)
+dev.off()
+
+png(paste0(WORKING.DIR,"/plots/tick_tpm_de_dendrogram.png"),
+    height=5,
+    width=10,
+    units = "in",res=300)
+print(dendrogram.plot)
+dev.off()
+
+print(dendrogram.plot)
+```
+
+![image](/images/tick_tpm_de_dendrogram.png)
 
 ##### Conduct a PCA on the TPM values of all genes that passed CPM cutoff
 
@@ -2168,10 +2333,11 @@ pca.df <- pca.df[rowSums(pca.df == 0) != ncol(pca.df),]
 pca <- PCA(as.data.frame(scale(t(pca.df))), graph = FALSE, ncp = ncol(tpm.keep) - 1)
 
 pca.plot <- ggplot()+
-  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = dendrocol,size = dendrosize, shape = dendroshape))+
+  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = groups[,4],size = colSums(counts), shape = groups[,3]))+
   labs(col = "Samples", size = "Reads Mapped\nto Features", 
        x = paste0("PC1 (", round(pca$eig[1,2],1), "%)"), 
        y = paste0("PC2 (", round(pca$eig[2,2],1), "%)"))+
+  #geom_label_repel(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2],label=names(pca$ind$dist)))+
   guides(color = F,size = F, shape = F)+
   # guides(colour = guide_legend(ncol = 2))+
   scale_color_manual(values = levels(groups[,2]))+
@@ -2187,7 +2353,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/tick_tpm_kept_pca.png"),
     height=5,
     width=5,
-	units = "in",res=300)
+    units = "in",res=300)
 print(pca.plot)
 dev.off()
 
@@ -2196,14 +2362,48 @@ print(pca.plot)
 
 ![image](/images/tick_tpm_kept_pca.png)
 
+##### Conduct a PCA on the TPM values of all differentially expressed genes
+
+```{R,fig.height=5,fig.width=5}
+pca.df <- t(scale(t(log2(tpm.de + 1))))
+pca.df <- pca.df[rowSums(pca.df == 0) != ncol(pca.df),]
+pca <- PCA(as.data.frame(scale(t(pca.df))), graph = FALSE, ncp = ncol(tpm.keep) - 1)
+
+pca.plot <- ggplot()+
+  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = groups[,4],size = colSums(counts), shape = groups[,3]))+
+  labs(col = "Samples", size = "Reads Mapped\nto Features", 
+       x = paste0("PC1 (", round(pca$eig[1,2],1), "%)"), 
+       y = paste0("PC2 (", round(pca$eig[2,2],1), "%)"))+
+  #geom_label_repel(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2],label=names(pca$ind$dist)))+
+  guides(color = F,size = F, shape = F)+
+  # guides(colour = guide_legend(ncol = 2))+
+  scale_color_manual(values = levels(groups[,2]))+
+  scale_shape_manual(values= as.numeric(as.character(levels(dendroshape))))+
+  theme_bw()
+
+pdf(paste0(WORKING.DIR,"/plots/tick_tpm_de_pca.pdf"),
+    height=5,
+    width=5)
+print(pca.plot)
+dev.off()
+
+png(paste0(WORKING.DIR,"/plots/tick_tpm_de_pca.png"),
+    height=5,
+    width=5,
+    units = "in",res=300)
+print(pca.plot)
+dev.off()
+
+print(pca.plot)
+```
+
+![image](/images/tick_tpm_de_pca.png)
 
 #### Divide differentially expressed genes into expression modules
 
 ##### Find soft power value for WGCNA
 
 ```{R}
-tpm.de <- tpm[rownames(tpm) %in% rownames(edgeR.longitudinal.degenes),]
-
 wgcna <- as.data.frame(t(tpm.de))
 powers <- c(c(1:10), seq(from = 12, to=20, by=2))
 sft <- pickSoftThreshold(wgcna, powerVector = powers, verbose = 5)
@@ -2237,7 +2437,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/tick_tpm_de_wgcna_soft_power_plot.png"),
     width = 10, 
     height = 5,
-	units = "in",res=300)
+    units = "in",res=300)
 grid.arrange(grobs = wgcna_soft_power_plots,
              widths = c(5,5),
              heights = c(5),
@@ -2960,7 +3160,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/ehrlichia_rarefication_plot.png"),
     height=5,
     width=6,
-	units = "in",res=300)
+    units = "in",res=300)
 print(rarefy.plot)
 dev.off()
 
@@ -2980,9 +3180,9 @@ groups <- groups[groups[,1] %in% include.samples,]
 groups[,4] <- as.character(groups[,4])
 for(i in 1:nrow(groups)){
   if(grepl("ISE6",groups[i,1])){
-    groups[i,4] <- paste0(as.character(groups[i,4]),", Tick")
+    groups[i,5] <- "Tick"
   }else{
-    groups[i,4] <- paste0(as.character(groups[i,4]),", Canine")
+    groups[i,5] <- "Canine"
   }
 }
 
@@ -2993,6 +3193,7 @@ groups[,1] <- factor(groups[,1], levels = groups[,1])
 groups[,2] <- factor(groups[,2], levels = unique(groups[,2]))
 groups[,3] <- factor(groups[,3], levels = unique(groups[,3]))
 groups[,4] <- factor(groups[,4], levels = unique(groups[,4]))
+groups[,5] <- factor(groups[,5], levels = unique(groups[,5]))
 
 counts <- counts[,colnames(counts) %in% groups[,1]]
 tpm <- tpm[,colnames(tpm) %in% groups[,1]]
@@ -3036,6 +3237,9 @@ write.table(edgeR.longitudinal.degenes,
 
 counts.keep <- counts[keep,]
 tpm.keep <- tpm[keep,]
+
+counts.de <- counts[rownames(counts) %in% rownames(edgeR.longitudinal.degenes),]
+tpm.de <- tpm[rownames(tpm) %in% rownames(edgeR.longitudinal.degenes),]
 ```
 
 
@@ -3049,11 +3253,11 @@ tpm.keep <- tpm[keep,]
 ##### Create sample legend for PCA and hierarchical clustering plots
 
 ```{R, fig.height = 2, fig.width = 10}
-legend.plot <- ggplot(mapping=aes(x=groups[,1], y=seq(1,length(groups[,1]),1), group = groups[,4]))+
-    geom_point(aes(color = groups[,4],shape=groups[,3]), size = 4)+
-    #scale_shape_manual(values = levels(groups[,3]))+
-    scale_color_manual(values = levels(groups[,2]))+
-    guides(shape = guide_legend(title = "Samples", title.position = "top",nrow=2),
+legend.plot <-  ggplot(mapping=aes(x=groups[,1], y=seq(1,length(groups[,1]),1), group = groups[,4]))+
+    geom_point(aes(color = groups[,4],shape=groups[,5]), size = 4)+
+    scale_shape_manual(values = as.numeric(as.character(unique(groups[,3]))))+
+    scale_color_manual(values = as.character(unique(groups[,2])))+
+    guides(shape = guide_legend(title = "Host", title.position = "top",nrow=2),
            colour = guide_legend(title = "Samples", title.position = "top",nrow=2))+
     theme_bw()+
     theme(legend.position="top",legend.title.align=0.5)
@@ -3123,7 +3327,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_kept_dendrogram.png"),
     height=5,
     width=10,
-	units = "in",res=300)
+    units = "in",res=300)
 print(dendrogram.plot)
 dev.off()
 
@@ -3131,6 +3335,61 @@ print(dendrogram.plot)
 ```
 
 ![image](/images/ehrlichia_tpm_kept_dendrogram.png)
+
+##### Conduct a hierarchical cluster analysis on the TPM values of all differentially expressed
+
+```{R, fig.height=5, fig.width=10}
+dendrogram <- as.data.frame(t(scale(t(log2(tpm.de+1)))))
+
+result <- pvclust(dendrogram, method.dist="cor", method.hclust="average", nboot=100)
+
+structure <- get_dendro_structure(result)
+dendro.data <- get_dendro_data(result)
+bootstrap.positions <- get_dendro_bootstraps(dendro.data)
+  
+points.df <- as.data.frame(cbind(seq(1,length(structure),1),
+                                 structure))
+dendrogroups <- groups[,4][result$hclust$order]
+dendrocol <- groups[,2][result$hclust$order]
+dendroshape <- groups[,3][result$hclust$order]
+dendrosize <- colSums(counts.keep)[result$hclust$order]
+#dendrosize <- 1
+
+dendrogram.plot <- ggdendrogram(hang.dendrogram(as.dendrogram(result$hclust)), theme_dendro = T)+
+  geom_point(aes(x=seq(1,length(structure)), y = structure, color = dendrogroups, size = dendrosize, shape = dendroshape))+
+  scale_shape_manual(values= as.numeric(as.character(levels(dendroshape))))+
+  scale_color_manual(values = levels(groups[,2]))+
+  labs(x = "", y = "", col = "Samples", size = "Reads Mapped\nto Features")+
+  guides(colour = guide_legend(ncol = 2), size = F, shape = F)+
+  #scale_x_discrete(limits = as.character(dendrolabels))+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0, hjust = 1),
+        axis.text.y = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+for(i in 1:length(result$edges$bp)){
+  text <- round(result$edges$bp[i] * 100,0)
+  dendrogram.plot <- dendrogram.plot + annotate("text", label = text, x=bootstrap.positions[i,1] + 0.4, y=bootstrap.positions[i,2] + 0.04, size = 2)
+}
+pdf(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_de_dendrogram.pdf"),
+    height=5,
+    width=10)
+print(dendrogram.plot)
+dev.off()
+
+png(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_de_dendrogram.png"),
+    height=5,
+    width=10,
+    units = "in",res=300)
+print(dendrogram.plot)
+dev.off()
+
+print(dendrogram.plot)
+```
+
+![image](/images/ehrlichia_tpm_de_dendrogram.png)
+
 ##### Conduct a PCA on the TPM values of all genes that passed CPM cutoff
 
 ```{R,fig.height=5,fig.width=5}
@@ -3139,10 +3398,11 @@ pca.df <- pca.df[rowSums(pca.df == 0) != ncol(pca.df),]
 pca <- PCA(as.data.frame(scale(t(pca.df))), graph = FALSE, ncp = ncol(tpm.keep) - 1)
 
 pca.plot <- ggplot()+
-  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = dendrocol,size = dendrosize, shape = dendroshape))+
+  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = groups[,4],size = colSums(counts), shape = groups[,3]))+
   labs(col = "Samples", size = "Reads Mapped\nto Features", 
        x = paste0("PC1 (", round(pca$eig[1,2],1), "%)"), 
        y = paste0("PC2 (", round(pca$eig[2,2],1), "%)"))+
+  #geom_label_repel(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2],label=names(pca$ind$dist)))+
   guides(color = F,size = F, shape = F)+
   # guides(colour = guide_legend(ncol = 2))+
   scale_color_manual(values = levels(groups[,2]))+
@@ -3158,7 +3418,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_kept_pca.png"),
     height=5,
     width=5,
-	units = "in",res=300)
+    units = "in",res=300)
 print(pca.plot)
 dev.off()
 
@@ -3167,14 +3427,48 @@ print(pca.plot)
 
 ![image](/images/ehrlichia_tpm_kept_pca.png)
 
+##### Conduct a PCA on the TPM values of all differentially expressed genes
+
+```{R,fig.height=5,fig.width=5}
+pca.df <- t(scale(t(log2(tpm.de + 1))))
+pca.df <- pca.df[rowSums(pca.df == 0) != ncol(pca.df),]
+pca <- PCA(as.data.frame(scale(t(pca.df))), graph = FALSE, ncp = ncol(tpm.keep) - 1)
+
+pca.plot <- ggplot()+
+  geom_point(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2], color = groups[,4],size = colSums(counts), shape = groups[,3]))+
+  labs(col = "Samples", size = "Reads Mapped\nto Features", 
+       x = paste0("PC1 (", round(pca$eig[1,2],1), "%)"), 
+       y = paste0("PC2 (", round(pca$eig[2,2],1), "%)"))+
+  #geom_label_repel(aes(x=pca$ind$coord[,1], y=pca$ind$coord[,2],label=names(pca$ind$dist)))+
+  guides(color = F,size = F, shape = F)+
+  # guides(colour = guide_legend(ncol = 2))+
+  scale_color_manual(values = levels(groups[,2]))+
+  scale_shape_manual(values= as.numeric(as.character(levels(dendroshape))))+
+  theme_bw()
+
+pdf(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_de_pca.pdf"),
+    height=5,
+    width=5)
+print(pca.plot)
+dev.off()
+
+png(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_de_pca.png"),
+    height=5,
+    width=5,
+    units = "in",res=300)
+print(pca.plot)
+dev.off()
+
+print(pca.plot)
+```
+
+![image](/images/ehrlichia_tpm_de_pca.png)
 
 #### Divide differentially expressed genes into expression modules
 
 ##### Find soft power value for WGCNA
 
 ```{R}
-tpm.de <- tpm[rownames(tpm) %in% rownames(edgeR.longitudinal.degenes),]
-
 wgcna <- as.data.frame(t(tpm.de))
 powers <- c(c(1:10), seq(from = 12, to=20, by=2))
 sft <- pickSoftThreshold(wgcna, powerVector = powers, verbose = 5)
@@ -3208,7 +3502,7 @@ dev.off()
 png(paste0(WORKING.DIR,"/plots/ehrlichia_tpm_de_wgcna_soft_power_plot.png"),
     width = 10, 
     height = 5,
-	units = "in",res=300)
+    units = "in",res=300)
 grid.arrange(grobs = wgcna_soft_power_plots,
              widths = c(5,5),
              heights = c(5),
@@ -3499,7 +3793,7 @@ heatmap.2(as.matrix(zscore.log2tpm.de),
 
 ![image](/images/ehrlichia_tpm_de_wgcna_zscorelog2tpm_inverse_heatmap.png)
 
-##### Construct geneinfo for Ehrlichia core genome
+#### Construct geneinfo for Ehrlichia core genome
 
 ```{R}
 geneinfo <- as.data.frame(matrix(nrow=nrow(ortho_table),
