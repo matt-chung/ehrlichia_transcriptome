@@ -34,14 +34,14 @@
         - [HISAT2](#hisat2)
         - [Salmon](#salmon)
     - [Quantify canine, tick, and E. chaffeensis transcript expression levels](#quantify-canine-tick-and-e-chaffeensis-transcript-expression-levels)
+        - [Canine/Tick](#caninetick-1)
+            - [Quantify canine/tick transcripts directly from reads using Salmon](#quantify-caninetick-transcripts-directly-from-reads-using-salmon)
         - [E. chaffeensis](#e-chaffeensis)
             - [Align reads to their respective combined references](#align-reads-to-their-respective-combined-references)
             - [Sort BAM files](#sort-bam-files)
             - [Remove nonsorted BAM files](#remove-nonsorted-bam-files)
             - [Index BAM files](#index-bam-files)
             - [Quantify E. chaffeensis genes from BAM files using FADU](#quantify-e-chaffeensis-genes-from-bam-files-using-fadu)
-        - [Canine/Tick](#caninetick-1)
-            - [Quantify canine/tick transcripts directly from reads using Salmon](#quantify-caninetick-transcripts-directly-from-reads-using-salmon)
     - [Conduct differential expression analysis](#conduct-differential-expression-analysis)
         - [Canine](#canine)
             - [Set R inputs](#set-r-inputs)
@@ -160,6 +160,16 @@ wget -O "$WORKING_DIR"/references/StVincent.gff.gz ftp://ftp.ncbi.nlm.nih.gov/ge
 wget -O "$WORKING_DIR"/references/Wakulla.gff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/945/GCF_000632945.1_ASM63294v1/GCF_000632945.1_ASM63294v1_genomic.gff.gz
 wget -O "$WORKING_DIR"/references/WestPaces.gff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/965/GCF_000632965.1_ASM63296v1/GCF_000632965.1_ASM63296v1_genomic.gff.gz
 wget -O "$WORKING_DIR"/references/HF.gff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/845/GCF_000632845.1_ASM63284v1/GCF_000632845.1_ASM63284v1_genomic.gff.gz
+
+## E. chaffeensis for Sybil
+wget -O "$WORKING_DIR"/references/Arkansas.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/013/145/GCF_000013145.1_ASM1314v1/GCF_000013145.1_ASM1314v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/Heartland.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/815/GCF_000632815.1_ASM63281v1/GCF_000632815.1_ASM63281v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/Jax.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/865/GCF_000632865.1_ASM63286v1/GCF_000632865.1_ASM63286v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/Liberty.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/885/GCF_000632885.1_ASM63288v1/GCF_000632885.1_ASM63288v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/Osceola.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/905/GCF_000632905.1_ASM63290v1/GCF_000632905.1_ASM63290v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/StVincent.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/925/GCF_000632925.1_ASM63292v1/GCF_000632925.1_ASM63292v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/Wakulla.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/945/GCF_000632945.1_ASM63294v1/GCF_000632945.1_ASM63294v1_genomic.gbff.gz
+wget -O "$WORKING_DIR"/references/WestPaces.gbff.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/632/965/GCF_000632965.1_ASM63296v1/GCF_000632965.1_ASM63296v1_genomic.gbff.gz
 
 gunzip "$WORKING_DIR"/references/*gz
 ```
@@ -619,6 +629,45 @@ qsub -P jdhotopp-lab -l mem_free=5G -N salmon_index -wd "$REFERENCES_DIR" -b y "
 
 ## Quantify canine, tick, and E. chaffeensis transcript expression levels
 
+### Canine/Tick
+
+#### Quantify canine/tick transcripts directly from reads using Salmon
+
+##### Inputs
+```{bash, eval = F}
+OUTPUT_DIR="$WORKING_DIR"/salmon
+REFERENCES_DIR="$WORKING_DIR"/references
+READS_DIR="$WORKING_DIR"/reads
+SRR_MAP="$WORKING_DIR"/pecha_groups.tsv
+THREADS=4
+```
+
+##### Commands
+```{bash, eval = F}
+cat "$SRR_MAP" | while read LINE
+do
+    SRR="$(echo "$LINE" | awk -F "\t" '{print $1}')"
+    ORG1="$(echo "$LINE" | awk -F "\t" '{print $2}' | awk -F "_" '{print $2}')"
+    ORG2="$(echo "$LINE" | awk -F "\t" '{print $2}' | awk -F "_" '{print $3}' | sed "s/totalRNA.//g")"
+
+    if [ "$ORG1"  == "DH82" ]; then
+        FNA="$REFERENCES_DIR"/canine.cds.fna
+    elif [ "$ORG1"  == "ISE6" ] && [ "$ORG2"  == "" ]; then
+        FNA="$REFERENCES_DIR"/tick.cds.fna
+    elif [ "$ORG1"  == "ISE6" ] && [[ "$ORG2"  =~ "mRNA" ]]; then
+        FNA="$REFERENCES_DIR"/tick.cds.fna
+    elif [ "$ORG1"  == "ISE6" ]; then
+        FNA="$REFERENCES_DIR"/"$ORG2"_tick.cds.combined.fna
+    else
+        FNA="$REFERENCES_DIR"/"$ORG1"_canine.cds.combined.fna
+    fi 
+
+    if [ ! -f "$OUTPUT_DIR"/"$SRR"/quant.sf ]; then
+    echo -e ""$SALMON_BIN_DIR"/salmon quant -i "$FNA".salmon.index --libType A -1 "$READS_DIR"/"$SRR"_1.fastq.gz -2 "$READS_DIR"/"$SRR"_2.fastq.gz -p "$THREADS" -o "$OUTPUT_DIR"/"$SRR" --validateMappings  --allowDovetail" | qsub -P jdhotopp-lab -q threaded.q -pe thread "$THREADS" -l mem_free=5G -N salmon -wd "$OUTPUT_DIR"
+    fi
+done
+```
+
 ### E. chaffeensis
 
 #### Align reads to their respective combined references
@@ -751,47 +800,7 @@ fi
 done
 ```
 
-### Canine/Tick
-
-#### Quantify canine/tick transcripts directly from reads using Salmon
-
-##### Inputs
-```{bash, eval = F}
-OUTPUT_DIR="$WORKING_DIR"/salmon
-REFERENCES_DIR="$WORKING_DIR"/references
-READS_DIR="$WORKING_DIR"/reads
-SRR_MAP="$WORKING_DIR"/pecha_groups.tsv
-THREADS=4
-```
-
-##### Commands
-```{bash, eval = F}
-cat "$SRR_MAP" | while read LINE
-do
-	SRR="$(echo "$LINE" | awk -F "\t" '{print $1}')"
-	ORG1="$(echo "$LINE" | awk -F "\t" '{print $2}' | awk -F "_" '{print $2}')"
-	ORG2="$(echo "$LINE" | awk -F "\t" '{print $2}' | awk -F "_" '{print $3}' | sed "s/totalRNA.//g")"
-
-	if [ "$ORG1"  == "DH82" ]; then
-		FNA="$REFERENCES_DIR"/canine.cds.fna
-	elif [ "$ORG1"  == "ISE6" ] && [ "$ORG2"  == "" ]; then
-		FNA="$REFERENCES_DIR"/tick.cds.fna
-	elif [ "$ORG1"  == "ISE6" ] && [[ "$ORG2"  =~ "mRNA" ]]; then
-		FNA="$REFERENCES_DIR"/tick.cds.fna
-	elif [ "$ORG1"  == "ISE6" ]; then
-		FNA="$REFERENCES_DIR"/"$ORG2"_tick.cds.combined.fna
-	else
-		FNA="$REFERENCES_DIR"/"$ORG1"_canine.cds.combined.fna
-	fi 
-
-	if [ ! -f "$OUTPUT_DIR"/"$SRR"/quant.sf ]; then
-	echo -e ""$SALMON_BIN_DIR"/salmon quant -i "$FNA".salmon.index --libType A -1 "$READS_DIR"/"$SRR"_1.fastq.gz -2 "$READS_DIR"/"$SRR"_2.fastq.gz -p "$THREADS" -o "$OUTPUT_DIR"/"$SRR" --validateMappings  --allowDovetail" | qsub -P jdhotopp-lab -q threaded.q -pe thread "$THREADS" -l mem_free=5G -N salmon -wd "$OUTPUT_DIR"
-	fi
-done
-```
-
 ## Conduct differential expression analysis
-
 
 ### Canine
 
